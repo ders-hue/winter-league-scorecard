@@ -15,6 +15,7 @@ body{overflow-x:hidden}.topbar,.field{min-width:0}.field select,.field input{min
 .top-actions{display:flex;gap:8px}.icon-btn svg{width:23px;height:23px;fill:none;stroke:#d9dedb;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.leaderboard-columns{display:grid;grid-template-columns:minmax(0,1fr) 54px 54px;gap:6px;align-items:end;margin-bottom:6px;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase}.leaderboard-status{margin:0;font-size:12px;font-weight:600;text-transform:none}.leaderboard-columns span{text-align:center}.leaderboard-list{display:grid;gap:5px}.leaderboard-card{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#f8faf7}.leaderboard-row{display:grid;width:100%;grid-template-columns:26px minmax(0,1fr) 54px 54px;gap:6px;align-items:center;min-height:34px;padding:4px 8px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}.leaderboard-row.expanded{background:#eef7eb}.leaderboard-pos{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#e3f1df;color:var(--green);font-size:12px;font-weight:900}.leaderboard-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:900}.leaderboard-stat{text-align:center}.leaderboard-stat b{display:block;font-size:16px;line-height:1}.leaderboard-empty{padding:20px;text-align:center;color:var(--muted);background:#f8faf7;border-radius:11px}.mini-scorecard{padding:4px;border-top:1px solid var(--line);background:#fff}.mini-nine{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;margin:0 0 4px}.mini-nine:last-child{margin-bottom:0}.mini-nine th,.mini-nine td{position:static;min-width:0;padding:2px 1px;border:1px solid #e2e9e2;background:#fff;text-align:center;font-size:10px;line-height:1.1;font-weight:700}.mini-nine th:first-child,.mini-nine td:first-child{position:static;min-width:34px;background:#edf3ea;text-align:left;font-weight:900}.mini-loading{padding:3px;color:var(--muted);font-size:11px}
 .mark{display:block;object-fit:cover}
 .player-setup{grid-template-columns:minmax(0,1fr) 78px}.player-number,.remove-player,#addPlayerButton{display:none}@media(max-width:390px){.player-setup{grid-template-columns:minmax(0,1fr) 72px}}
+#newRoundIntro .eyebrow{margin-bottom:12px;font-size:14px}
 </style>
 </head>
 <body>
@@ -25,7 +26,7 @@ body{overflow-x:hidden}.topbar,.field{min-width:0}.field select,.field input{min
   </header>
 
   <main class="page" id="setupPage">
-    <div id="newRoundIntro"><div class="eyebrow">New round</div><h1>Player Setup:</h1></div>
+    <div id="newRoundIntro"><div class="eyebrow">New round</div></div>
     <section class="card resume-box hidden" id="resumeBox"><b id="resumeTitle">Round in progress</b><p id="resumeText"></p><button class="btn grow" id="resumeButton">Resume scorecard</button></section>
     <section class="card setup-card" id="setupCard"><div id="setupPlayers"></div><div class="setup-actions"><button class="btn secondary" id="addPlayerButton">+ Add player</button><button class="btn grow" id="startButton">Start round</button></div><div class="error" id="setupError" role="alert"></div></section>
   </main>
