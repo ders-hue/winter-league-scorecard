@@ -233,7 +233,7 @@ function composeCaretHtml(){return '<span class="compose-caret" aria-hidden="tru
 function renderComposeText(){const caret=composeCaretHtml();composeDisplay.innerHTML=composeText?escapeHtml(composeText)+caret:caret+'<span class="compose-placeholder">Type your message…</span>'}
 function fitComposeText(){if(!composeDisplay.clientHeight)return;let size=44;composeDisplay.style.fontSize=`${size}px`;while(size>16&&composeDisplay.scrollHeight>composeDisplay.clientHeight+1){size-=1;composeDisplay.style.fontSize=`${size}px`}}
 function updateCompose(){renderComposeText();$('#composeCount').textContent=`${composeText.length}/100`;composeDisplay.setAttribute('aria-valuetext',composeText);fitComposeText()}
-function insertComposeCharacter(char){const value=composeShift&&!composeEmojiMode&&/^[a-z]$/i.test(char)?char.toUpperCase():char;if((composeText+value).length>100)return;composeText+=value;if(composeShift){composeShift=false;renderComposeKeyboard()}updateCompose()}
+function insertComposeCharacter(char){const letter=/^[a-z]$/i.test(char),value=letter&&!composeEmojiMode&&(composeShift||composeText.length===0)?char.toUpperCase():char;if((composeText+value).length>100)return;composeText+=value;if(composeShift){composeShift=false;renderComposeKeyboard()}updateCompose()}
 function deleteComposeCharacter(){const characters=Array.from(composeText);characters.pop();composeText=characters.join('');updateCompose()}
 function clearBackspaceRepeat(){clearTimeout(backspaceDelay);clearInterval(backspaceInterval);backspaceDelay=null;backspaceInterval=null}
 function resetCompose(){composeText='';composeShift=false;composeEmojiMode=false;clearBackspaceRepeat();updateCompose()}
