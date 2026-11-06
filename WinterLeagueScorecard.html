@@ -41,6 +41,7 @@ html:has(dialog[open]),body:has(dialog[open]){overflow:hidden;overscroll-behavio
 .compose-head{display:flex;justify-content:center}.compose-display{cursor:text;white-space:pre-wrap;overflow-wrap:anywhere;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}.compose-placeholder{color:#829087}.compose-char{white-space:pre}.compose-caret{display:inline-block;width:3px;height:1em;margin:0 1px -0.12em 0;border-radius:2px;background:var(--green);animation:composeCaretBlink 1s steps(1,end) infinite}@keyframes composeCaretBlink{0%,48%{opacity:1}49%,100%{opacity:0}}.compose-key-row.controls{grid-template-columns:1.15fr 5fr}.compose-key-row.emoji{grid-template-columns:repeat(10,minmax(0,1fr))}.compose-key-row.emoji-controls{grid-template-columns:1.3fr 5fr 1.3fr}.compose-key.emoji-key{font-size:22px}.compose-key.emoji-on{border-color:var(--mid);background:var(--green);color:#fff}.compose-dialog,.compose-dialog *{-webkit-tap-highlight-color:transparent}.compose-dialog button:focus,.compose-dialog button:focus-visible{outline:none}.compose-display:focus,.compose-display:focus-visible{outline:none}@media(prefers-reduced-motion:reduce){.compose-caret{animation:none}}
 .compose-display{cursor:default}
 .chat-text{font-size:17px}
+.update-dialog{border:1px solid #70ff4255}.update-dialog .dialog-body{padding:20px}.update-dialog p{margin-bottom:18px;color:var(--ink);font-size:16px}.update-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.update-dialog button:focus-visible{outline:3px solid var(--lime);outline-offset:2px}.update-dialog button{-webkit-tap-highlight-color:transparent}@media(max-width:360px){.update-actions{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -95,8 +96,12 @@ html:has(dialog[open]),body:has(dialog[open]){overflow:hidden;overscroll-behavio
 <dialog id="scoreEntryDialog" class="score-entry-dialog"><div class="score-entry-head"><button class="score-entry-close" id="closeScoreEntry" type="button" aria-label="Close score entry">×</button><div class="score-entry-title"><span id="keypadPlayer">PLAYER</span></div><div class="score-entry-meta" id="scoreEntryHole">HOLE: 1 | PAR: 4</div></div><div class="score-entry-body"><div class="keypad score-keypad"><button class="key" data-score="1">1</button><button class="key" data-score="2">2</button><button class="key" data-score="3">3</button><button class="key" data-score="4">4</button><button class="key" data-score="5">5</button><button class="key" data-score="6">6</button><button class="key" data-score="7">7</button><button class="key" data-score="8">8</button><button class="key no-score" data-action="no-score">BLOB</button></div></div></dialog>
 <dialog id="navigationStyleDialog"><div class="dialog-head"><h2>Navigation style</h2><button class="close-navigation-style" aria-label="Close navigation style">×</button></div><div class="dialog-body"><div class="navigation-choice-list"><button class="navigation-choice" type="button" data-navigation-style="classic"><strong>Classic</strong><small>Inline keypad with wide hole arrows, suitable for large screens or rounds with only 2 players</small></button><button class="navigation-choice" type="button" data-navigation-style="modern"><strong>Modern</strong><small>Tap a player for popup scoring; swipe between holes, suitable for smaller phone screens or rounds with 3-4 players</small></button></div><label class="auto-advance-option"><input id="autoAdvanceCheckbox" type="checkbox"><span>Automatically move to next hole after all players have scores.</span></label></div></dialog>
 
+<dialog id="updateDialog" class="update-dialog"><div class="dialog-head"><h2>Update available</h2></div><div class="dialog-body"><p>A newer version of Winter League Scoring is ready. Install it before starting the round.</p><div class="update-actions"><button class="btn secondary" type="button" id="updateLater">Later</button><button class="btn" type="button" id="updateNow">Update now</button></div></div></dialog>
+
 <script>
-const STORAGE_KEY='nwwl-stableford-scorecard-v1',PHONE_USER_KEY='nwwl-phone-user-v1',NAVIGATION_STYLE_KEY='nwwl-scorecard-navigation-style',AUTO_ADVANCE_KEY='nwwl-scorecard-auto-advance',CHAT_READ_KEY='nwwl-chat-read-v1';
+const APP_VERSION='2026.11.06.1';
+const STORAGE_KEY='nwwl-stableford-scorecard-v1',PHONE_USER_KEY='nwwl-phone-user-v1',NAVIGATION_STYLE_KEY='nwwl-scorecard-navigation-style',AUTO_ADVANCE_KEY='nwwl-scorecard-auto-advance',CHAT_READ_KEY='nwwl-chat-read-v1',UPDATE_SNOOZE_KEY='nwwl-scorecard-update-snooze-v1';
+const UPDATE_CHECK_INTERVAL=5*60*1000,UPDATE_SNOOZE_INTERVAL=15*60*1000;
 const API_URL='https://nwwl-scorecard-api.ders-c54.workers.dev';
 const FALLBACK_HANDICAPS={'Ian Sherwood':13,'Shaun Preen':9,'Alex Hamilton':15,'Matty Smart':7,'Tim Garrett':4,'Steve Ford':17,'Terry Cox':11,'Kev Bate':20,'Kev Buckland':16};
 let PLAYER_HANDICAPS={...FALLBACK_HANDICAPS};
@@ -160,6 +165,31 @@ function playerRunningTotals(player,end=currentHole+1){return player.scores.slic
 function allComplete(){return round&&round.players.every(player=>player.scores.every(Boolean))}
 function completedHoles(){if(!round)return 0;return COURSE.filter((_,holeIndex)=>round.players.every(player=>player.scores[holeIndex])).length}
 function showPage(name){['setup','score','summary'].forEach(page=>$('#'+page+'Page').classList.toggle('hidden',page!==name))}
+
+let lastUpdateCheckAt=0,pendingUpdateRelease=null,updateCheckInFlight=false;
+const updateDialog=$('#updateDialog');
+function preRoundScreenActive(){return !round&&!$('#setupPage').classList.contains('hidden')&&document.visibilityState==='visible'}
+function updateSnoozed(version){try{const snooze=JSON.parse(localStorage.getItem(UPDATE_SNOOZE_KEY)||'null');return snooze?.version===version&&Number(snooze.until)>Date.now()}catch{return false}}
+function otherDialogOpen(){return [...document.querySelectorAll('dialog[open]')].some(dialog=>dialog!==updateDialog)}
+function showUpdateOffer(release){pendingUpdateRelease=release;if(!preRoundScreenActive()||release.version===APP_VERSION||updateSnoozed(release.version)||otherDialogOpen()||updateDialog.open)return;updateDialog.showModal()}
+async function checkForUpdate(force=false){
+ const now=Date.now();if(!preRoundScreenActive()||updateCheckInFlight||(!force&&now-lastUpdateCheckAt<UPDATE_CHECK_INTERVAL))return;
+ lastUpdateCheckAt=now;updateCheckInFlight=true;
+ try{
+  const response=await fetch(`version.json?check=${now}`,{cache:'no-store'});if(!response.ok)return;
+  const release=await response.json();if(!release||typeof release.version!=='string'||!release.version.trim()||typeof release.app!=='string'||!release.app.trim()||release.version===APP_VERSION)return;
+  const assetUrl=new URL(release.app,location.href);assetUrl.searchParams.set('check',String(Date.now()));
+  const assetResponse=await fetch(assetUrl,{cache:'no-store'});if(!assetResponse.ok)return;
+  const asset=await assetResponse.text();if(!asset.includes(`const APP_VERSION='${release.version}'`))return;
+  if(!preRoundScreenActive()||release.version===APP_VERSION||updateSnoozed(release.version))return;
+  showUpdateOffer(release);
+ }catch{}finally{updateCheckInFlight=false}
+}
+function snoozeUpdate(){const release=pendingUpdateRelease;if(release){try{localStorage.setItem(UPDATE_SNOOZE_KEY,JSON.stringify({version:release.version,until:Date.now()+UPDATE_SNOOZE_INTERVAL}))}catch{}}pendingUpdateRelease=null;if(updateDialog.open)updateDialog.close()}
+function applyUpdate(){if(!pendingUpdateRelease||!preRoundScreenActive())return;try{localStorage.removeItem(UPDATE_SNOOZE_KEY)}catch{}const url=new URL(location.href);url.searchParams.set('update',pendingUpdateRelease.version);location.replace(url.href)}
+$('#updateLater').addEventListener('click',snoozeUpdate);$('#updateNow').addEventListener('click',applyUpdate);updateDialog.addEventListener('cancel',event=>{event.preventDefault();snoozeUpdate()});
+document.querySelectorAll('dialog:not(#updateDialog)').forEach(dialog=>dialog.addEventListener('close',()=>setTimeout(()=>{if(pendingUpdateRelease)showUpdateOffer(pendingUpdateRelease)},0)));
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate()});window.addEventListener('focus',()=>checkForUpdate());
 
 function rosterOptions(row){const selectedElsewhere=new Set(setupRows.filter(other=>other!==row&&other.selection&&other.selection!=='__guest__').map(other=>other.selection));return '<option value="">Select player</option>'+ROSTER.filter(name=>!selectedElsewhere.has(name)).map(name=>`<option value="${escapeHtml(name)}" ${row.selection===name?'selected':''}>${escapeHtml(name)}</option>`).join('')+`<option value="__guest__" ${row.selection==='__guest__'?'selected':''}>${row.selection==='__guest__'&&row.guestName?escapeHtml(row.guestName)+' (Guest)':'Guest player…'}</option>`}
 function handicapOptions(row){return '<option value="">—</option>'+Array.from({length:29},(_,value)=>`<option value="${value}" ${String(row.handicap)===String(value)?'selected':''}>${value}</option>`).join('')}
@@ -279,7 +309,7 @@ leaderboardDialog.addEventListener('close',()=>{adminMode=false;adminPin='';$('#
 $('#acknowledgeAdministratorAbandon').addEventListener('click',()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());clearSavedRound();round=null;currentHole=0;selectedPlayer=0;summaryEditMode=false;setupRows=emptySetupRows();administratorAbandonShown=false;renderSetup();showPage('setup')});
 $('#acknowledgeRoundTransferred').addEventListener('click',()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());clearSavedRound();round=null;currentHole=0;selectedPlayer=0;summaryEditMode=false;setupRows=emptySetupRows();roundTransferredShown=false;renderSetup();showPage('setup')});
 const refreshLogo=$('#refreshLogo'),leaderboardAdminLogo=$('#leaderboardAdminLogo');let refreshHoldTimer=null;function startRefreshHold(event){if(event.type==='keydown'&&event.key!=='Enter'&&event.key!==' ')return;if(event.type==='keydown'&&event.repeat)return;event.preventDefault();if(event.type==='pointerdown'&&event.currentTarget.setPointerCapture)event.currentTarget.setPointerCapture(event.pointerId);clearTimeout(refreshHoldTimer);refreshHoldTimer=setTimeout(()=>{if(leaderboardDialog.open)openAdminLogin();else window.location.reload()},1000)}function cancelRefreshHold(){clearTimeout(refreshHoldTimer);refreshHoldTimer=null}function bindHoldLogo(logo){logo.addEventListener('pointerdown',startRefreshHold);['pointerup','pointercancel'].forEach(type=>logo.addEventListener(type,cancelRefreshHold));logo.addEventListener('keydown',startRefreshHold);logo.addEventListener('keyup',cancelRefreshHold);logo.addEventListener('contextmenu',event=>event.preventDefault());logo.addEventListener('dragstart',event=>event.preventDefault())}bindHoldLogo(refreshLogo);bindHoldLogo(leaderboardAdminLogo);refreshLogo.style.cssText+=';cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none';
-renderSetup();showPage('setup');loadSharedPlayers().catch(error=>console.warn('Using built-in player handicaps.',error)).finally(showPhoneUserSetup);checkAdministratorAbandon();setInterval(checkAdministratorAbandon,10000);loadChat();clearInterval(chatTimer);chatTimer=setInterval(loadChat,10000);
+renderSetup();showPage('setup');loadSharedPlayers().catch(error=>console.warn('Using built-in player handicaps.',error)).finally(showPhoneUserSetup);setTimeout(()=>checkForUpdate(),3000);checkAdministratorAbandon();setInterval(checkAdministratorAbandon,10000);loadChat();clearInterval(chatTimer);chatTimer=setInterval(loadChat,10000);
 </script>
 </body>
 </html>
